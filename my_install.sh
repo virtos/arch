@@ -1,6 +1,6 @@
 echo on
 echo Check connection:
-ping archilinux.org
+ping google.com
 read -p "Press any key if no errors"
 
 timedatectl set-ntp true
@@ -28,7 +28,7 @@ cryptsetup luksOpen /dev/sda2 cryptroot
 read -p "Press any key if no errors"
 
 echo 'Format the disk'
-mkfs.fat   --label efiboot -F32 /dev/sda1
+mkfs.fat   -n efiboot -F32 /dev/sda1
 mkfs.btrfs --label archlinux /dev/mapper/cryptroot
 mount -o noatime,commit=120,compress=zstd,discard,ssd,defaults /dev/mapper/cryptroot /mnt
 
