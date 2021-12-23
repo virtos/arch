@@ -1,35 +1,40 @@
+echo on
 echo Check connection:
 ping archilinux.org
-exit
+read -p "Press any key if no errors"
 
 timedatectl set-ntp true
 
 # Partition the disk
 echo Install on /dev/sda?
 lsblk
-exit
+read -p "Press any key if no errors"
 
 
 # Create a primary partition - entire disk
 parted -s /dev/sda mklabel gpt
-parted -s mkpart ESP fat32 1MiB 300MiB
-parted -s name 1 efiboot
+parted -s /dev/sda mkpart ESP fat32 1MiB 300MiB
+parted -s /dev/sda name 1 efiboot
 parted -s /dev/sda mkpart primary 300MiB 100%
-parted -s name system
-parted -s print
+parted -s /dev/sda name system
+parted -s /dev/sda print
 
-exit
+read -p "Press any key if no errors"
 
-# Create a LUKS volume & Open it
+echo 'Create a LUKS volume & Open it'
 cryptsetup luksFormat --cipher aes-xts-plain64 --key-size 256 --hash sha256 --use-random /dev/sda2
 cryptsetup luksOpen /dev/sda2 cryptroot
 
+read -p "Press any key if no errors"
+
+echo 'Format the disk'
 mkfs.fat   --label efiboot -F32 /dev/sda1
 mkfs.btrfs --label archlinux /dev/mapper/cryptroot
 mount -o noatime,commit=120,compress=zstd,discard,ssd,defaults /dev/mapper/cryptroot /mnt
 
 read -p "Press any key if no errors"
 
+echo 'create subvolumes'
 btrfs su cr /mnt/@
 btrfs su cr /mnt/@home
 btrfs su cr /mnt/@var
@@ -40,6 +45,7 @@ umount /mnt
 
 read -p "Press any key if no errors"
 
+echo 'mount subvolumes'
 mount -o noatime,commit=120,compress=zstd,space_cache,subvol=@ /dev/mapper/cryptroot /mnt
 mkdir /mnt/{boot,home,var,opt,tmp,.snapshots}
 mount -o noatime,commit=120,compress=zstd,space_cache,subvol=@home /dev/mapper/cryptroot /mnt/home
@@ -52,7 +58,7 @@ mount /dev/sda1 /mnt/boot
 
 read -p "Press any key if no errors"
 
-
+echo 'install linux'
 # Install Arch Linux with full encrypted btrfs subvolume inside luks
 pacstrap /mnt base base-devel linux linux-firmware nano intel-ucode btrfs-progs grub --noconfirm
 # Generate fstab
@@ -62,7 +68,7 @@ cat /mnt/etc/fstab
 read -p "Press any key if fstab looks ok"
 
 arch-chroot /mnt
-# Setup system clock
+echo 'Setup system clock'
 ln -s /usr/share/zoneinfo/Europe/Moscow /etc/localtime
 hwclock --systohc --utc
 # Set the hostname
@@ -75,14 +81,18 @@ echo LANG=en_US.UTF-8 >> /etc/locale.conf
 echo LANGUAGE=en_US >> /etc/locale.conf
 echo LC_ALL=C >> /etc/locale.conf
 
-read -p "Press any key if fstab looks ok"
+read -p "Press any key"
 
+echo 'Network setup'
 touch /etc/hosts
 echo '127.0.0.1	localhost'  >> /etc/hosts
 echo '::1		localhost' >> /etc/hosts
 echo '127.0.1.1	laparch.localdomain	laparch' >> /etc/hosts
+cat /etc/hosts
 
-# Create a new initramfs
+read -p "Press any key if no errors"
+
+echo 'Create a new initramfs'
 sed -i 's/HOOKS=(base\ udev\ autodetect\ modconf\ block\ filesystems\ keyboard\ fsck)/HOOKS="base\ udev\ autodetect\ modconf\ block\ encrypt\ filesystems\ keyboard\ fsck"/' /etc/mkinitcpio.conf
 cat /etc/mkinitcpio.conf
 read -p "Check HOOKS before continue"
@@ -102,6 +112,8 @@ grub-mkconfig -o /boot/grub/grub.cfg
 grub-mkconfig -o /boot/efi/EFI/arch/grub.cfg
 mkdir /boot/efi/EFI/BOOT
 cp /boot/efi/EFI/arch/grubx64.efi /boot/efi/EFI/BOOT/BOOTX64.EFI
+
+read -p "Press any key if no errors"
 
 echo 'Allow users to run SUDO'
 echo "%wheel ALL=(ALL) ALL" | (EDITOR="tee -a" visudo)
